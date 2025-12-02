@@ -1,3 +1,4 @@
+// server.js
 const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
@@ -8,9 +9,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Ensure packs folder exists
 if (!fs.existsSync("packs")) fs.mkdirSync("packs");
 
-// Multer storage for 2 file fields
+// Multer storage configuration
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const folder = "packs/temp/";
@@ -43,31 +45,23 @@ app.post("/upload",
 
         const name = req.body.name?.trim();
         if (!name) return res.status(400).json({ error: "Missing name" });
-
         if (!req.files.file) return res.status(400).json({ error: "Missing .pck file" });
-        if (!req.files.thumbnail) return res.status(400).json({ error: "Missing thumbnail" });
 
         const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
         const packFolder = `packs/${sanitizedName}`;
+        if (!fs.existsSync(packFolder)) fs.mkdirSync(packFolder, { recursive: true });
 
-        // Create folder for this skinpack
-        if (!fs.existsSync(packFolder)) {
-            fs.mkdirSync(packFolder, { recursive: true });
-        }
-
-        // Move files into the folder
+        // Move .pck file
         const pckFile = req.files.file[0];
-        const thumbFile = req.files.thumbnail ? req.files.thumbnail[0] : null;
-
-if (thumbFile) {
-    fs.renameSync(thumbFile.path, `${packFolder}/thumbnail.png`);
-} else {
-    fs.copyFileSync("frontend/default_thumbnail.png", `${packFolder}/thumbnail.png`);
-}
-
-
         fs.renameSync(pckFile.path, `${packFolder}/skinpack.pck`);
-        fs.renameSync(thumbFile.path, `${packFolder}/thumbnail.png`);
+
+        // Handle optional thumbnail
+        const thumbFile = req.files.thumbnail ? req.files.thumbnail[0] : null;
+        if (thumbFile) {
+            fs.renameSync(thumbFile.path, `${packFolder}/thumbnail.png`);
+        } else {
+            fs.copyFileSync("frontend/default_thumbnail.png", `${packFolder}/thumbnail.png`);
+        }
 
         // Update list.json
         updateListJSON();
@@ -81,17 +75,18 @@ if (thumbFile) {
     }
 );
 
-// Serve individual pack folders
+// Serve packs statically
 app.use("/packs", express.static(path.join(__dirname, "packs")));
 
-// List all packs
+// Endpoint to list all packs
 app.get("/list", (req, res) => {
+    if (!fs.existsSync("list.json")) updateListJSON();
     const data = fs.readFileSync("list.json", "utf8");
     res.setHeader("Content-Type", "application/json");
     res.send(data);
 });
 
-// Generate list.json
+// Generate list.json based on existing folders
 function updateListJSON() {
     const folders = fs.readdirSync("packs", { withFileTypes: true })
         .filter(dir => dir.isDirectory())
@@ -106,16 +101,12 @@ function updateListJSON() {
     fs.writeFileSync("list.json", JSON.stringify(list, null, 4));
 }
 
-// Create initial list.json
-if (!fs.existsSync("list.json")) updateListJSON();
-
-
-// Serve frontend files
+// Serve frontend
 app.use("/", express.static(path.join(__dirname, "frontend")));
 
+// Initialize list.json
+if (!fs.existsSync("list.json")) updateListJSON();
 
+// Start server
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Server running on port ${port}`));
-
-
-
