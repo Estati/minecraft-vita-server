@@ -57,7 +57,14 @@ app.post("/upload",
 
         // Move files into the folder
         const pckFile = req.files.file[0];
-        const thumbFile = req.files.thumbnail[0];
+        const thumbFile = req.files.thumbnail ? req.files.thumbnail[0] : null;
+
+if (thumbFile) {
+    fs.renameSync(thumbFile.path, `${packFolder}/thumbnail.png`);
+} else {
+    fs.copyFileSync("frontend/default_thumbnail.png", `${packFolder}/thumbnail.png`);
+}
+
 
         fs.renameSync(pckFile.path, `${packFolder}/skinpack.pck`);
         fs.renameSync(thumbFile.path, `${packFolder}/thumbnail.png`);
@@ -104,3 +111,4 @@ if (!fs.existsSync("list.json")) updateListJSON();
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Server running on port ${port}`));
+
